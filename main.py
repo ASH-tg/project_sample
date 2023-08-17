@@ -1,35 +1,48 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from plyer import gps
-from plyer import permission
+from kivy.utils import platform
+
+from jnius import autoclass, PythonJavaClass, java_method
 
 class LocationApp(App):
     def build(self):
-        layout = BoxLayout(orientation='vertical')
+        self.layout = BoxLayout(orientation='vertical')
         self.label = Label(text="Waiting for location...")
-        layout.add_widget(self.label)
-        self.request_location_permission()
-        return layout
+        self.layout.add_widget(self.label)
+
+        if platform == 'android':
+            self.request_location_permission()
+        else:
+            self.label.text = "This feature is available on Android only."
+
+        return self.layout
 
     def request_location_permission(self):
-        if permission.check_permission('location'):
-            self.start_location_tracking()
+        if self.check_location_permission():
+            self.start_location()
         else:
-            permission.request_permission('location', self.permission_callback)
+            self.request_permission()
 
-    def permission_callback(self, permission, granted):
-        if granted:
-            self.start_location_tracking()
-        else:
-            self.label.text = "Location permission denied."
+    def check_location_permission(self):
+        activity = autoclass('org.kivy.android.PythonActivity').mActivity
+        permission = autoclass('android.Manifest$permission')
+        PackageManager = autoclass('android.content.pm.PackageManager')
 
-    def start_location_tracking(self):
-        gps.configure(on_location=self.on_location)
-        gps.start(minTime=1000, minDistance=1)
+        permission_to_check = permission.ACCESS_FINE_LOCATION
+        return PackageManager.PERMISSION_GRANTED == activity.checkSelfPermission(permission_to_check)
 
-    def on_location(self, **kwargs):
-        self.label.text = "Latitude: {}\nLongitude: {}".format(kwargs['lat'], kwargs['lon'])
+    def request_permission(self):
+        activity = autoclass('org.kivy.android.PythonActivity').mActivity
+        ActivityCompat = autoclass('androidx.core.app.ActivityCompat')
+        permission = autoclass('android.Manifest$permission')
+
+        permission_to_request = permission.ACCESS_FINE_LOCATION
+        ActivityCompat.requestPermissions(activity, [permission_to_request], 1)
+
+    def start_location(self):
+        # Implement your location tracking logic here
+        pass
 
 if __name__ == '__main__':
     LocationApp().run()
